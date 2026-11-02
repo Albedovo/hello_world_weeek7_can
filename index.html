@@ -143,23 +143,23 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   // foods: what each of the three lines cans. wrong: chance a fresh item of another food strays onto a line.
   const T = 'tomato', P = 'peach', F = 'fish', M = 'mushroom';
   const DAYS = [
-    { name: 'Level 1', foods: [, T], target: 230, walk: 6, gap: 1.15, bad: .34, big: 0, wrong: 0, tailgate: .1, ramp: .3, bpm: 118, time: 40,
+    { name: 'Level 1', foods: [, T], target: 205, walk: 6, gap: 1.15, bad: .34, big: 0, wrong: 0, tailgate: .1, ramp: .3, bpm: 118, time: 40,
       tip: ['Tomatoes ride the belt into the can. Rotten ones must not get in.', 'Tap when a rotten tomato is on the orange pad. You can tap as fast as you like.'] },
-    { name: 'Level 2', foods: [, T], target: 240, walk: 5.6, gap: 1.1, bad: .3, big: 0, wrong: .14, pool: [P], tailgate: .1, ramp: .3, bpm: 122, time: 40,
+    { name: 'Level 2', foods: [, T], target: 235, walk: 5.6, gap: 1.1, bad: .3, big: 0, wrong: .14, pool: [P], tailgate: .1, ramp: .3, bpm: 122, time: 40,
       tip: ['Peaches have strayed onto the tomato line.', 'Fresh or not, anything that is not a tomato must go.'] },
-    { name: 'Level 3', foods: [, F], target: 270, walk: 5.2, gap: 1, bad: .3, big: .18, wrong: .16, pool: [T, P], tailgate: .15, ramp: .35, bpm: 126, time: 40,
+    { name: 'Level 3', foods: [, F], target: 260, walk: 5.2, gap: 1, bad: .3, big: .18, wrong: .16, pool: [T, P], tailgate: .15, ramp: .35, bpm: 126, time: 40,
       tip: ['One line, faster, canning fish today.', 'Big rotten items pay double.'] },
-    { name: 'Level 4', foods: [, T, P], target: 270, walk: 5.4, gap: 1.05, bad: .34, big: 0, wrong: 0, tailgate: .1, ramp: .3, bpm: 126, time: 40,
+    { name: 'Level 4', foods: [, T, P], target: 235, walk: 5.4, gap: 1.05, bad: .34, big: 0, wrong: 0, tailgate: .1, ramp: .3, bpm: 126, time: 40,
       tip: ['Line 2 opens: tomatoes and peaches, each with its own can.', 'Both pushers fire together, so wait until no good food is on a pad.'] },
-    { name: 'Level 5', foods: [, F, P], target: 320, walk: 5, gap: .95, bad: .3, big: 0, wrong: .13, pool: [T], tailgate: .2, ramp: .35, bpm: 130, time: 40,
+    { name: 'Level 5', foods: [, F, P], target: 290, walk: 5, gap: .95, bad: .3, big: 0, wrong: .13, pool: [T], tailgate: .2, ramp: .35, bpm: 130, time: 40,
       tip: ['Two lines with strays.', 'Check each item against the can at the end of its own line.'] },
-    { name: 'Level 6', foods: [, F, T], target: 360, walk: 4.6, gap: .85, bad: .3, big: .18, wrong: .14, pool: [P], tailgate: .25, ramp: .4, bpm: 134, time: 40,
+    { name: 'Level 6', foods: [, F, T], target: 350, walk: 4.6, gap: .85, bad: .3, big: .18, wrong: .14, pool: [P], tailgate: .25, ramp: .4, bpm: 134, time: 40,
       tip: ['Two lines at speed.', 'Rotten items may ride right behind good ones.'] },
-    { name: 'Level 7', foods: [P, T, F], target: 375, walk: 4.8, gap: .85, bad: .34, big: 0, wrong: 0, tailgate: .2, ramp: .35, bpm: 136, time: 40,
+    { name: 'Level 7', foods: [P, T, F], target: 335, walk: 4.8, gap: .85, bad: .34, big: 0, wrong: 0, tailgate: .2, ramp: .35, bpm: 136, time: 40,
       tip: ['All three lines are open.', 'Keep your eyes moving: one tap fires all three pushers.'] },
-    { name: 'Level 8', foods: [F, P, T], target: 405, walk: 4.3, gap: .75, bad: .3, big: .18, wrong: .14, tailgate: .3, ramp: .4, bpm: 142, time: 40,
+    { name: 'Level 8', foods: [F, P, T], target: 390, walk: 4.3, gap: .75, bad: .3, big: .18, wrong: .14, tailgate: .3, ramp: .4, bpm: 142, time: 40,
       tip: ['Three lines, swapped around, with strays.', 'Read the cans before you start.'] },
-    { name: 'Level 9', foods: [M, P, F], target: 500, walk: 3.7, gap: .65, bad: .3, big: .22, wrong: .18, tailgate: .35, ramp: .5, bpm: 150, time: 40,
+    { name: 'Level 9', foods: [M, P, F], target: 450, walk: 3.7, gap: .65, bad: .3, big: .22, wrong: .18, tailgate: .35, ramp: .5, bpm: 150, time: 40,
       tip: ['Rush order. Mushrooms join the line.', 'Top speed. One bad item spoils a whole can.'] }
   ];
   const LEVELS = DAYS.length;
@@ -304,7 +304,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
     let kind = 'good', type = food;
     if (roll < day.bad) kind = rnd() < day.big ? 'big' : 'bad';
     else if (roll < day.bad + day.wrong) { kind = 'wrong'; type = rpick((day.pool || [T, P, F]).filter(f => f !== food)); }
-    G.list.push({ kind, st: 'walk', p: 0, route, type, seed: rnd() * 10, walk: day.walk * (.98 + rnd() * .04),
+    G.list.push({ kind, st: 'walk', p: 0, route, type, seed: rnd() * 10, walk: day.walk * L.walkK * (.98 + rnd() * .04),
       size: kind === 'big' ? 1.3 : .94 + rnd() * .12, spin: (rnd() < .5 ? -1 : 1) * (1 + rnd()), t: 0, off: 0, vo: 0 });
     return kind !== 'good';
   }
@@ -313,7 +313,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
     Object.assign(G, { day: i, list: [], floats: [], bin: [], belt: 0, rate: 1, money: 0, rep: MAX_REP, time: day.time, spawnIn: .2,
       streak: 0, sealed: 0, caught: 0, sneaked: 0, scared: 0, cat: { st: 'idle', t: 0 }, queued: false, kick: 0,
       cans: [0, 0, 0].map(() => ({ fill: 0, swap: 0, ruin: 0 })) });
-    for (let n = 0; n < 3; n++) { spawn(); const e = G.list[n]; e.p = Math.max(0, .46 - n * day.gap / day.walk); }
+    for (let n = 0; n < 3; n++) { spawn(); const e = G.list[n]; e.p = Math.max(0, .46 - n * day.gap / (day.walk * L.walkK)); }
   }
   function float(text, color, x, y) { G.floats.push({ text, color, x, y, t: 1, size: 17 }); }
   function bump(id) { const el = $(id); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
@@ -346,7 +346,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   function step(dt) {
     const day = DAYS[G.day];
     G.rate = 1 + day.ramp * (1 - G.time / day.time);
-    const beltV = (L.endX - L.startX) / day.walk * G.rate;
+    const beltV = (L.endX - L.startX) / (day.walk * L.walkK) * G.rate;
     G.belt += beltV * dt; G.kick = Math.max(0, G.kick - dt);
     G.time -= dt; G.spawnIn -= dt * G.rate;
     if (G.spawnIn <= 0) {
@@ -539,7 +539,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
     L.canX = W - L.canW / 2 - (wide ? 26 : 10);
     L.beltEnd = L.canX - L.canW * .35;
     L.endX = L.beltEnd + 6; L.endP = .985;
-    L.zc = L.startX + (L.endX - L.startX) * .62; L.zoneW = (L.endX - L.startX) * .13;
+    L.zc = L.startX + (L.endX - L.startX) * .62; L.zoneW = 76; L.walkK = Math.max(1, (L.endX - L.startX) / 520);
     L.reach = L.belt * .72;
     L.binW = wide ? 230 : 200; L.binH = L.binW * .47; L.binTop = H - L.binH * .96;
     if (VS.on) { L.fullW = W * 2; L.panels = [0, W].map(left => Object.assign({}, L, { left })); }
