@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cannery Line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@600;800&display=swap">
+<style>
+/* Layout: tilted factory floor. Straight belts run into one giant can on the right; the red band on each belt is the pusher's reach. */
+:root {
+  color-scheme: light;
+  --ink: #2f2a33;
+  --cream: #fbf6e9;
+  --leaf: #2f2a33;
+  --leaf-deep: #2f2a33;
+  --butter: #ffc93c;
+  --coral: #ff8a6b;
+  --display: "Fredoka", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --body: "Nunito", system-ui, -apple-system, sans-serif;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: #b7c97a; color: var(--ink); font-family: var(--body);
+  overflow: hidden; overscroll-behavior: none;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#app {
+  height: 100%; display: grid; grid-template-rows: auto auto 1fr auto;
+  touch-action: none; cursor: pointer; position: relative;
+}
+#hud {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto; gap: 8px; align-items: center;
+  padding-block: 7px; background: var(--cream); border-bottom: 3px solid var(--leaf);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.stat { min-width: 0; }
+.stat small { display: block; font-size: 11px; letter-spacing: .06em; opacity: .7; }
+.stat b {
+  display: block; font: 400 clamp(17px, 4.6vw, 23px)/1.15 var(--display);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+#money b { color: #cf8f20; }
+#rep b { color: var(--coral); }
+.pop { animation: pop .3s ease-out; }
+@keyframes pop { 40% { transform: scale(1.14); } }
+#hud .round {
+  width: 40px; height: 40px; border: 2px solid var(--ink); border-radius: 50%;
+  background: #fff; color: var(--ink); font: 500 15px var(--display); cursor: pointer;
+}
+#timebar { height: 6px; background: #dff2d8; }
+#timefill { height: 100%; width: 100%; background: var(--leaf); transform-origin: left; }
+#stage { min-height: 0; position: relative; overflow: hidden; }
+canvas#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#foot {
+  display: flex; align-items: center; gap: 10px; min-height: 56px;
+  background: var(--cream); border-top: 3px solid var(--leaf); padding-block: 4px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+#face { width: 46px; height: 46px; flex: none; }
+#shelfwrap { min-width: 0; flex: 1; }
+#shelfwrap small { display: block; font-size: 11px; opacity: .75; margin-bottom: 3px; }
+#goalbar { height: 12px; border: 2px solid var(--ink); border-radius: 7px; background: #fff; overflow: hidden; }
+#goalfill { height: 100%; background: #6fd6c1; transform-origin: left; transform: scaleX(0); }
+#overlay {
+  position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+  background: #4f7f5a80; cursor: default; overflow: auto; padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+#card {
+  width: 100%; max-width: 460px; box-sizing: border-box; padding: 18px;
+  background: var(--cream); color: var(--ink); border: 3px solid var(--leaf); border-radius: 22px;
+  box-shadow: 0 6px 0 var(--leaf-deep);
+}
+#eyebrow { font: 700 12px var(--body); letter-spacing: .1em; color: var(--coral); }
+#ctitle { font: 400 clamp(28px, 8vw, 38px)/1.15 var(--display); margin: 2px 0 8px; text-wrap: balance; color: var(--leaf-deep); }
+#cbody { font-size: 14px; line-height: 1.55; display: grid; gap: 4px; }
+#cbody p { margin: 0; }
+#cbody .row { display: flex; justify-content: space-between; gap: 16px; font-variant-numeric: tabular-nums; }
+#cbody .row b { font-family: var(--display); font-weight: 400; font-size: 17px; }
+  min-width: 0; padding: 6px 4px; border: 2px solid #e6e0c8; border-radius: 16px; background: #fff;
+  color: var(--ink); font: 400 12px/1.35 var(--body); cursor: pointer; text-align: center;
+}
+.pickcat .swatch { display: block; width: 44px; height: 14px; border: 3px solid var(--ink); border-radius: 5px; margin: 6px auto; }
+.pickcat b { display: block; font: 400 17px var(--display); color: var(--leaf-deep); }
+.pickcat em { display: block; font-style: normal; color: #cc6a5c; }
+.pickcat[aria-pressed="true"] { border-color: var(--leaf); background: #eefae8; }
+#btns { display: grid; gap: 8px; margin-top: 12px; }
+#btns:empty { display: none; }
+.btn {
+  width: 100%; min-height: 48px; border: 0; border-radius: 14px; background: var(--butter); color: var(--ink);
+  font: 500 19px var(--display); cursor: pointer; box-shadow: 0 4px 0 #dfaa3a;
+}
+.btn.alt { background: #fff; box-shadow: inset 0 0 0 2px var(--ink); min-height: 42px; font-size: 16px; }
+.levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+.lvl {
+  min-width: 0; padding: 7px 4px; border: 2px solid var(--ink); border-radius: 12px; background: #fff;
+  color: var(--ink); font: 600 11px/1.3 var(--body); cursor: pointer; text-align: center;
+}
+.lvl b { display: block; font: 600 22px var(--display); }
+.lvl span, .lvl em { display: block; font-style: normal; }
+.lvl.done { background: #e2f6ef; }
+button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+</style>
+
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="stat" id="money"><small id="lblA">Earned</small><b id="vMoney">$0</b></div>
+    <div class="stat"><small id="lblB">Goal</small><b id="vTarget">$0</b></div>
+    <div class="stat" id="rep"><small id="lblC">Quality</small><b id="vRep">★ 5/5</b></div>
+    <button id="pause" class="round" type="button" aria-label="Pause">Ⅱ</button>
+    <button id="mute" class="round" type="button" aria-label="Toggle sound">♪</button>
+  </div>
+  <div id="timebar"><div id="timefill"></div></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="foot">
+        <div id="shelfwrap"><small id="vStock">Day 1</small><div id="goalbar"><div id="goalfill"></div></div></div>
+  </div>
+  <div id="overlay"><div id="card">
+    <div id="eyebrow"></div>
+    <h1 id="ctitle"></h1>
+    <div id="cbody"></div>
+    <div id="btns"></div>
+  </div></div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
+  const DISPLAY = getComputedStyle(document.documentElement).getPropertyValue('--display');
+  const LINE = '#2f2a33';
+
+  const ITEM_PAY = 5, CAN_PAY = 30, REJECT_PAY = 3, CAPACITY = 6, MAX_REP = 5, REFIRE = .055, CYCLE = .2;
+  const FOOD = { tomato: 'Tomato', peach: 'Peach', fish: 'Fish', mushroom: 'Mushroom' };
+  // foods: what each of the three lines cans. wrong: chance a fresh item of another food strays onto a line.
+  const T = 'tomato', P = 'peach', F = 'fish', M = 'mushroom';
+  const DAYS = [
+    { name: 'Level 1', foods: [, T], target: 205, walk: 6, gap: 1.15, bad: .34, big: 0, wrong: 0, tailgate: .1, ramp: .3, bpm: 118, time: 40,
+      tip: ['Tomatoes ride the belt into the can. Rotten ones must not get in.', 'Tap when a rotten tomato is on the orange pad. You can tap as fast as you like.'] },
+    { name: 'Level 2', foods: [, T], target: 235, walk: 5.6, gap: 1.1, bad: .3, big: 0, wrong: .14, pool: [P], tailgate: .1, ramp: .3, bpm: 122, time: 40,
+      tip: ['Peaches have strayed onto the tomato line.', 'Fresh or not, anything that is not a tomato must go.'] },
+    { name: 'Level 3', foods: [, F], target: 260, walk: 5.2, gap: 1, bad: .3, big: .18, wrong: .16, pool: [T, P], tailgate: .15, ramp: .35, bpm: 126, time: 40,
+      tip: ['One line, faster, canning fish today.', 'Big rotten items pay double.'] },
+    // From Level 4 on, pushers are staggered and a pushed item drops onto the line below instead of straight into the bin.
+    // sort: chance a stray is a food from a lower line, so pushing it down files it into the right can.
+    { name: 'Level 4', foods: [, T, P], target: 185, walk: 6, gap: 1.3, bad: .34, big: 0, wrong: 0, tailgate: .1, ramp: .25, bpm: 124, time: 40,
+      tip: ['Line 2 opens. A pushed item now drops onto the line below.', 'Rotten food on the top line needs a second push on the lower pad to reach the bin.'] },
+    { name: 'Level 5', foods: [, T, P], target: 220, walk: 5.6, gap: 1.2, bad: .28, big: 0, wrong: .2, sort: .8, pool: [F], tailgate: .15, ramp: .3, bpm: 128, time: 40,
+      tip: ['A fresh peach on the tomato line? Push it down: the peach line takes it.', 'Sorted food pays like a reject and still fills the can below.'] },
+    { name: 'Level 6', foods: [, F, T], target: 270, walk: 5, gap: 1.05, bad: .3, big: .18, wrong: .16, sort: .6, pool: [P], tailgate: .25, ramp: .35, bpm: 134, time: 40,
+      tip: ['Two lines at speed.', 'Every tap fires both pushers. Find the moment when no good food sits on either pad.'] },
+    { name: 'Level 7', foods: [P, T, F], target: 195, walk: 6, gap: 1.25, bad: .32, big: 0, wrong: 0, tailgate: .15, ramp: .25, bpm: 134, time: 40,
+      tip: ['All three lines are open. Rotten food on top needs three pushes.', 'The pads step to the right, so each drop lands just before the next pad.'] },
+    { name: 'Level 8', foods: [F, P, T], target: 255, walk: 5.4, gap: 1.05, bad: .3, big: .18, wrong: .16, sort: .7, tailgate: .2, ramp: .3, bpm: 140, time: 40,
+      tip: ['Three lines with strays.', 'Read the cans below before you push: a stray may belong further down.'] },
+    { name: 'Level 9', foods: [M, P, F], target: 340, walk: 4.6, gap: .9, bad: .3, big: .22, wrong: .18, sort: .6, tailgate: .3, ramp: .4, bpm: 148, time: 40,
+      tip: ['Rush order. Mushrooms join the line.', 'Top speed. One bad item spoils a whole can.'] }
+  ];
+  // A valid situation always leaves at least this much belt travel, in px, where a tap pushes what must go and nothing that must stay.
+  const SAFE_GAP = 30, KEEP_MARGIN = 6, DROP_TIME = .16;
+  const LEVELS = DAYS.length;
+  DAYS.push({ name: 'Battle', foods: [, T], target: 0, walk: 4.6, gap: .72, bad: .3, big: .16, wrong: .16, pool: [P, F], tailgate: .25, ramp: .7, bpm: 150, time: 60, tip: [] });
+  const lines = d => d.foods.map((f, i) => f ? i : -1).filter(i => i >= 0);
+
+  let G = {
+    mode: 'menu', day: 0, list: [], floats: [], bin: [], belt: 0, rate: 1, money: 0, total: 0, rep: MAX_REP,
+    time: 0, spawnIn: 0, streak: 0, sealed: 0, caught: 0, sneaked: 0, scared: 0,
+    cans: [0, 0, 0].map(() => ({ fill: 0, swap: 0, ruin: 0 })), cat: { st: 'idle', t: 0 }, queued: false, kick: 0, end: '', sched: []
+  };
+  let L = {}, base = {}, bg = null;
+  let done = [];
+  try { done = JSON.parse(localStorage.getItem('can-line-done-w8')) || []; } catch (e) {}
+  const saveDone = () => { try { localStorage.setItem('can-line-done-w8', JSON.stringify(done)); } catch (e) {} };
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  // Battle: both players read the same seeded chart, so their belts carry identical items at identical times.
+  const VS = { on: false, p: [], count: 0, ending: false, seed: 0, lines: 2, secs: 60 };
+  function seeded(a) { return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const rnd = () => (G.rng ? G.rng() : Math.random());
+  const rpick = a => a[Math.floor(rnd() * a.length)];
+  function withP(i, fn) { const g = G, l = L; G = VS.p[i]; L = L.panels ? L.panels[i] : l; fn(); G = g; L = l; }
+  function setMode(m) { G.mode = m; if (VS.on) for (const p of VS.p) p.mode = m; }
+
+  /* ---------- sound: soft and light, everything synthesized ---------- */
+  const S = { ac: null, master: null, music: null, sfx: null, on: true, next: 0, bar: 0, timer: 0, playing: false };
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  function wakeAudio() {
+    try {
+      if (!S.ac) {
+        const ac = S.ac = new (window.AudioContext || window.webkitAudioContext)();
+        S.master = ac.createDynamicsCompressor();
+        S.master.connect(ac.destination);
+        S.music = ac.createGain(); S.music.gain.value = .5; S.music.connect(S.master);
+        S.sfx = ac.createGain(); S.sfx.gain.value = .8; S.sfx.connect(S.master);
+        const len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+        S.noise = buf;
+      }
+      if (S.ac.state === 'suspended') S.ac.resume();
+      S.master.disconnect();
+      if (S.on) S.master.connect(S.ac.destination);
+    } catch (e) {}
+  }
+  function env(g, t, a, peak, d) {
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(.0001, t + a + d);
+  }
+  function osc(type, f0, t, dur, peak, out, f1 = 0, a = .006) {
+    const o = S.ac.createOscillator(), g = S.ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t);
+    if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    env(g, t, a, peak, dur);
+    o.connect(g).connect(out); o.start(t); o.stop(t + a + dur + .02);
+  }
+  function puff(t, dur, peak, freq) {
+    const src = S.ac.createBufferSource(), f = S.ac.createBiquadFilter(), g = S.ac.createGain();
+    src.buffer = S.noise; f.type = 'lowpass'; f.frequency.value = freq;
+    env(g, t, .01, peak, dur);
+    src.connect(f).connect(g).connect(S.sfx); src.start(t, Math.random(), dur + .05);
+  }
+  const sfx = fn => (...a) => { if (S.ac) fn(S.ac.currentTime, ...a); };
+  const SFX = {
+    bell: sfx(t => { osc('sine', 1760, t, .35, .035, S.sfx); osc('sine', 2217, t + .08, .4, .03, S.sfx); }),
+    till: sfx(t => { osc('sine', 1319, t, .16, .04, S.sfx); osc('sine', 1976, t + .08, .3, .04, S.sfx); }),
+    pon: sfx(t => { osc('sine', 520, t, .13, .12, S.sfx, 200); puff(t, .08, .04, 900); }),
+    bonk: sfx((t, v = 1) => { osc('sine', 240, t, .09, .13 * v, S.sfx, 95); puff(t, .05, .05 * v, 700); }),
+    piston: sfx(t => { osc('square', 150, t, .05, .05, S.sfx, 90); puff(t, .1, .1, 2400); }),
+    thunk: sfx(t => { osc('sine', 170, t, .12, .22, S.sfx, 60); puff(t, .06, .08, 800); }),
+    plop: sfx(t => { osc('sine', 300, t, .1, .06, S.sfx, 620); }),
+    sour: sfx(t => { osc('sawtooth', 233, t, .24, .05, S.sfx); osc('sawtooth', 247, t, .24, .05, S.sfx); }),
+    buzz: sfx((t, v = .02) => { osc('sawtooth', 190, t, .22, v, S.sfx, 230); }),
+    squeak: sfx((t, vol = .05) => { osc('sine', 2100, t, .06, vol, S.sfx, 2800); osc('sine', 2400, t + .09, .07, vol * .8, S.sfx, 3000); }),
+    combo: sfx((t, n) => { const r = Math.pow(2, Math.min(n, 7) * 2 / 12); osc('sine', 880 * r, t, .14, .05, S.sfx); osc('sine', 1320 * r, t + .08, .2, .05, S.sfx); }),
+    meow: sfx((t, up = 1) => {
+      const f = S.ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(1000, t);
+      f.frequency.linearRampToValueAtTime(1900, t + .12); f.frequency.linearRampToValueAtTime(900, t + .3); f.Q.value = 3; f.connect(S.sfx);
+      const o = S.ac.createOscillator(), g = S.ac.createGain(); o.type = 'triangle';
+      o.frequency.setValueAtTime(560 * up, t); o.frequency.linearRampToValueAtTime(760 * up, t + .11); o.frequency.linearRampToValueAtTime(470 * up, t + .3);
+      env(g, t, .03, .32, .26); o.connect(g).connect(f); o.start(t); o.stop(t + .34);
+    }),
+    oops: sfx(t => { osc('sine', 660, t, .14, .07, S.sfx, 520); osc('sine', 494, t + .13, .22, .07, S.sfx, 400); }),
+    munch: sfx(t => { for (const d of [0, .11]) puff(t + d, .04, .04, 2600); }),
+    sneak: sfx(t => { osc('sine', 988, t, .1, .06, S.sfx); osc('sine', 740, t + .1, .1, .06, S.sfx); osc('sine', 587, t + .2, .2, .06, S.sfx); })
+  };
+  const CHORDS = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62], [60, 64, 67], [52, 55, 59], [53, 57, 60], [55, 59, 62]];
+  const TUNE = [
+    [[76, 1], [79, 1], [84, 1]], [[81, 2], [76, 1]], [[77, 1], [81, 1], [79, 1]], [[74, 2], [71, 1]],
+    [[72, 1], [76, 1], [79, 1]], [[83, .5], [84, .5], [83, 1], [79, 1]], [[77, 1], [76, 1], [74, 1]], [[79, 3]]
+  ];
+  function scheduleBar(t, bar, beatLen) {
+    const ch = CHORDS[bar % 8];
+    osc('triangle', hz(ch[0] - 12), t, beatLen * .9, .16, S.music);
+    for (const k of [1, 2]) for (const m of ch) osc('triangle', hz(m), t + k * beatLen, beatLen * .3, .035, S.music);
+    let b = 0;
+    for (const [m, len] of TUNE[bar % 8]) {
+      const on = t + b * beatLen, up = bar % 16 >= 8 ? 12 : 0;
+      osc('sine', hz(m + up), on, len * beatLen * 1.1, .085, S.music);
+      osc('sine', hz(m + up) * 3, on, .18, .018, S.music);
+      b += len;
+    }
+  }
+  function musicTick() {
+    if (!S.ac || !S.playing) return;
+    const day = DAYS[G.day], rush = G.mode === 'play' && G.time < 10 ? 10 : 0, beatLen = 60 / (day.bpm + rush);
+    while (S.next < S.ac.currentTime + .25) { scheduleBar(S.next, S.bar, beatLen); S.next += beatLen * 3; S.bar++; }
+  }
+  function startMusic() {
+    if (!S.ac) return;
+    S.music.gain.setTargetAtTime(.5, S.ac.currentTime, .1);
+    if (S.playing) return;
+    S.playing = true; S.bar = 0; S.next = S.ac.currentTime + .08;
+    S.timer = setInterval(musicTick, 60);
+  }
+  function quietMusic() { if (S.ac) S.music.gain.setTargetAtTime(.2, S.ac.currentTime, .25); }
+
+
+
+
+
+  /* ---------- line ---------- */
+  const at = (p, route) => ({ x: L.startX + (L.endX - L.startX) * Math.max(0, Math.min(1, p)), y: L.lanes[route] });
+  // Every item rides at the same belt speed, so its x is the belt odometer minus a fixed origin.
+  // That makes the whole future of the line predictable from x alone.
+  const xOf = e => G.belt - e.o;
+  // Pads step to the right from the top line down, so an item pushed off one pad lands just before the next.
+  function pads() {
+    const day = DAYS[G.day], key = G.day + ':' + day.foods.join(), c = L.padCache;
+    if (c && c.key === key) return c;
+    const ls = lines(day), n = ls.length, xs = [];
+    let w = L.zoneW || 76;
+    if (n < 2) xs[ls[0]] = L.zc;
+    else {
+      const hi = L.beltEnd - 52, lo = L.startX + (L.endX - L.startX) * .3, D = Math.min(190, (hi - lo) / (n - 1));
+      w = Math.min(w, D - 34);
+      ls.forEach((r, k) => { xs[r] = hi - (n - 1 - k) * D; });
+    }
+    return (L.padCache = { key, xs, w, ls, last: ls[n - 1] });
+  }
+  const zone = r => { const P = pads(), x = P.xs[r]; return { x0: x - P.w / 2, x1: x + P.w / 2, x, w: P.w }; };
+  const binX = () => { const P = pads(); return P.xs[P.last]; };
+  const below = r => { const ls = pads().ls, k = ls.indexOf(r); return k >= 0 && k < ls.length - 1 ? ls[k + 1] : -1; };
+  const fresh = e => e.kind === 'good' || e.kind === 'wrong';
+  const belongs = (isFresh, type, r) => isFresh && type === DAYS[G.day].foods[r];
+  const keeps = e => belongs(fresh(e), e.type, e.route);
+  function inZone(e) {
+    if (e.st !== 'walk') return false;
+    const x = xOf(e), z = zone(e.route);
+    return x >= z.x0 && x <= z.x1;
+  }
+
+  /* ---------- fair spawning ---------- */
+  // The pad windows an item meets if handled correctly: pushed where it does not belong, kept where it does.
+  // Windows are in belt-odometer units, so they never move once planned.
+  function plan(route, isFresh, type, x0) {
+    const P = pads(), out = [], o = G.belt - x0;
+    for (let r = route; r >= 0; r = below(r)) {
+      const x = P.xs[r], keep = belongs(isFresh, type, r);
+      if (x + P.w / 2 <= x0) { if (keep) break; return null; }
+      out.push({ a: x - P.w / 2 + o, b: x + P.w / 2 + o, keep });
+      if (keep) break;
+    }
+    return out;
+  }
+  // Longest stretch of a push window that no keep window covers.
+  function freeIn(t, keepWins) {
+    const segs = keepWins.map(k => [k.a - KEEP_MARGIN, k.b + KEEP_MARGIN]).filter(s => s[1] > t.a && s[0] < t.b).sort((p, q) => p[0] - q[0]);
+    let cur = Math.max(t.a, G.belt), best = 0;
+    for (const [s0, s1] of segs) { if (s0 > cur) best = Math.max(best, s0 - cur); cur = Math.max(cur, s1); }
+    return Math.max(best, t.b - cur);
+  }
+  function fits(wins) {
+    const all = G.sched.filter(w => w.b > G.belt).concat(wins), keepWins = all.filter(w => w.keep);
+    const touched = t => wins.some(w => w.keep && w.a - KEEP_MARGIN < t.b && w.b + KEEP_MARGIN > t.a);
+    return all.every(t => t.keep || !(wins.includes(t) || touched(t)) || freeIn(t, keepWins) >= SAFE_GAP);
+  }
+  // 0 at rest, 1 fully out. The stroke is almost instant; firing again simply restarts it.
+  function paddle() {
+    const c = G.cat;
+    if (c.st !== 'jump') return 0;
+    if (c.t < .045) { const k = c.t / .045; return 1 - (1 - k) * (1 - k); }
+    if (c.t < .07) return 1;
+    return Math.max(0, 1 - (c.t - .07) / (CYCLE - .07));
+  }
+
+  /* ---------- simulation ---------- */
+  function strayType(route) {
+    const day = DAYS[G.day], food = day.foods[route], low = [];
+    for (let r = below(route); r >= 0; r = below(r)) low.push(day.foods[r]);
+    if (low.length && rnd() < (day.sort || 0)) return rpick(low);
+    const pool = (day.pool || [T, P, F]).filter(f => f !== food);
+    return rpick(pool.length ? pool : [T, P, F, M].filter(f => f !== food));
+  }
+  // Roll an item, then accept the first version (this line, then the others) that leaves a safe tap everywhere.
+  // Returns null when nothing fair fits right now.
+  function spawn(x0 = L.startX, force) {
+    const day = DAYS[G.day], ls = lines(day), roll = rnd(), r0 = force ? force.route : rpick(ls);
+    let kind = 'good';
+    if (force) kind = force.kind;
+    else if (roll < day.bad) kind = rnd() < day.big ? 'big' : 'bad';
+    else if (roll < day.bad + day.wrong) kind = 'wrong';
+    for (const r of force ? [r0] : [r0].concat(ls.filter(r => r !== r0))) {
+      const type = kind === 'wrong' ? strayType(r) : day.foods[r];
+      const wins = plan(r, kind === 'good' || kind === 'wrong', type, x0);
+      if (!wins || !fits(wins)) continue;
+      G.sched.push(...wins);
+      const e = { kind, st: 'walk', route: r, type, o: G.belt - x0, p: 0, seed: rnd() * 10,
+        size: kind === 'big' ? 1.3 : .94 + rnd() * .12, spin: (rnd() < .5 ? -1 : 1) * (1 + rnd()), t: 0 };
+      e.p = (x0 - L.startX) / (L.endX - L.startX);
+      G.list.push(e);
+      return e;
+    }
+    return null;
+  }
+  function beginDay(i) {
+    const day = DAYS[i];
+    Object.assign(G, { day: i, list: [], floats: [], bin: [], sched: [], belt: 0, rate: 1, money: 0, rep: MAX_REP, time: day.time, spawnIn: .2,
+      streak: 0, sealed: 0, caught: 0, sneaked: 0, scared: 0, cat: { st: 'idle', t: 0 }, queued: false, kick: 0,
+      cans: [0, 0, 0].map(() => ({ fill: 0, swap: 0, ruin: 0 })) });
+    const len = L.endX - L.startX, first = pads().xs[lines(day)[0]], p0 = Math.min(.46, (first - L.startX) / len - .08);
+    for (let n = 0; n < 3; n++) spawn(L.startX + len * Math.max(0, p0 - n * day.gap / (day.walk * L.walkK)));
+  }
+  // Pay for an item that needed to go once it is dealt with: in the bin, or sorted onto its own line.
+  function reward(e, x, y, label) {
+    const pay = (REJECT_PAY + Math.min(Math.max(0, (e.combo || 1) - 1), 5)) * (e.kind === 'big' ? 2 : 1);
+    G.money += pay; G.total += pay; G.caught++;
+    float((label || '') + '+$' + pay, '#b8780f', x, y - 46); bump('money');
+  }
+  function float(text, color, x, y) { G.floats.push({ text, color, x, y, t: 1, size: 17 }); }
+  function bump(id) { const el = $(id); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+
+  function fire() {
+    const hit = G.list.filter(inZone), good = hit.filter(keeps), bad = hit.filter(e => !keeps(e));
+    G.cat = { st: 'jump', t: 0 }; G.queued = false;
+    SFX.piston();
+    if (hit.length) { SFX.thunk(); G.kick = .07; }
+    if (bad.length) { G.streak += bad.length; SFX.combo(G.streak); }
+    for (const e of hit) {
+      // What must go drops to the line below (the bin from the last line); good food knocked off falls straight to the bin.
+      e.st = 'pushed'; e.t = 0; e.x = xOf(e); e.y = e.y0 = L.lanes[e.route]; e.vy = 0;
+      e.lost = good.includes(e); e.to = e.lost ? -1 : below(e.route); e.combo = G.streak;
+    }
+    for (const e of good) { G.rep--; G.scared++; G.streak = 0; if (VS.on) G.money = Math.max(0, G.money - 6); float(VS.on ? '-$6' : 'Good food lost', '#d9503f', e.x, e.y - 46); SFX.oops(); bump('rep'); }
+    if (!hit.length) G.streak = 0;
+  }
+  // Input never waits: a tap inside the short refire window is remembered and fires as soon as it closes.
+  function pounce() {
+    if (G.mode !== 'play') return false;
+    if (G.cat.st === 'jump' && G.cat.t < REFIRE) { G.queued = true; return true; }
+    fire();
+    return true;
+  }
+  function step(dt) {
+    const day = DAYS[G.day];
+    G.rate = 1 + day.ramp * (1 - G.time / day.time);
+    const beltV = (L.endX - L.startX) / (day.walk * L.walkK) * G.rate;
+    G.belt += beltV * dt; G.kick = Math.max(0, G.kick - dt);
+    G.time -= dt; G.spawnIn -= dt * G.rate;
+    if (G.sched.length > 80) G.sched = G.sched.filter(w => w.b > G.belt - 10);
+    if (G.spawnIn <= 0) {
+      const e = spawn();
+      if (!e) G.spawnIn = .12; // nothing fair fits this moment; try again shortly
+      else {
+        // A rotten item glued right behind a good one, a short gap back, on the same line.
+        const glue = e.kind === 'good' && rnd() < day.tailgate &&
+          !!spawn(L.startX - (L.endX - L.startX) * .1 / L.walkK, { route: e.route, kind: 'bad' });
+        G.spawnIn = day.gap * (.8 + rnd() * .5) + (glue ? .3 : 0);
+      }
+    }
+    const c = G.cat;
+    if (c.st === 'jump') { c.t += dt; if (G.queued && c.t >= REFIRE) fire(); else if (c.t >= CYCLE) c.st = 'idle'; }
+
+    for (const can of G.cans) { can.swap = Math.max(0, can.swap - dt); can.ruin = Math.max(0, can.ruin - dt); }
+    const len = L.endX - L.startX;
+    for (let i = G.list.length - 1; i >= 0; i--) {
+      const e = G.list[i];
+      if (e.st === 'walk') {
+        e.p = (xOf(e) - L.startX) / len;
+        if (e.p >= L.endP) {
+          e.st = 'drop'; e.t = 0; e.x = at(e.p, e.route).x; SFX.plop();
+          const can = G.cans[e.route], y = L.lanes[e.route] - L.canH * .62;
+          if (e.kind === 'good') {
+            can.fill++; G.money += ITEM_PAY; G.total += ITEM_PAY;
+            if (can.fill >= CAPACITY) {
+              can.fill = 0; can.swap = .34; G.sealed++; G.money += CAN_PAY; G.total += CAN_PAY;
+              float('Sealed +$' + CAN_PAY, '#2c8c74', L.canX, y); SFX.combo(3); bump('money');
+            }
+          } else {
+            can.fill = 0; can.ruin = .5; G.sneaked++; G.streak = 0;
+            float('Can spoiled', '#d9503f', L.canX, y); SFX.sour();
+          }
+        }
+      } else if (e.st === 'pushed') {
+        e.t += dt;
+        if (e.to >= 0) {
+          // Drops onto the next line while still travelling at belt speed, so it lands just before that line's pad.
+          const k = Math.min(1, e.t / DROP_TIME);
+          e.x = xOf(e); e.y = e.y0 + (L.lanes[e.to] - e.y0) * k * k;
+          if (k >= 1) {
+            e.st = 'walk'; e.route = e.to; e.p = (e.x - L.startX) / len; SFX.bonk(.3);
+            if (e.kind === 'wrong' && keeps(e)) { e.kind = 'good'; reward(e, e.x, e.y, 'Sorted '); SFX.till(); }
+          }
+        } else {
+          // Off the last line, or good food knocked off: down the chute into the bin.
+          e.vy = Math.min(1600, (e.vy || 700) + 2600 * dt);
+          e.y += e.vy * dt; e.x += (binX() - e.x) * Math.min(1, dt * 7);
+          if (e.y >= L.binTop + L.binH * .18) {
+            G.list.splice(i, 1); SFX.bonk(.4);
+            if (!e.lost) reward(e, e.x, L.binTop);
+            G.bin.push({ type: e.type, kind: e.kind, x: Math.random() * 2 - 1, y: Math.random(), rot: e.seed, size: e.size });
+            if (G.bin.length > 26) G.bin.shift();
+          }
+        }
+      } else if (e.st === 'drop') {
+        e.t += dt;
+        if (e.t > .3) G.list.splice(i, 1);
+      }
+    }
+    for (let i = G.floats.length - 1; i >= 0; i--) { G.floats[i].t -= dt * 1.25; if (G.floats[i].t <= 0) G.floats.splice(i, 1); }
+
+    if (!VS.on && G.rep <= 0) finish('rep');
+    else if (G.time <= 0) finish('time');
+  }
+
+  /* ---------- screens ---------- */
+  let overlayAt = 0;
+  function overlay(eyebrow, title, html, buttons) {
+    $('eyebrow').textContent = eyebrow; $('ctitle').textContent = title; $('cbody').innerHTML = html;
+    const box = $('btns'); box.innerHTML = '';
+    buttons.forEach(([label, act], i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = i ? 'btn alt' : 'btn'; b.textContent = label;
+      b.addEventListener('click', () => { if (performance.now() - overlayAt < 250) return; wakeAudio(); act(); });
+      box.appendChild(b);
+    });
+    $('overlay').hidden = false; overlayAt = performance.now();
+    if (box.firstChild) box.firstChild.focus({ preventScroll: true });
+  }
+  function closeOverlay() { $('overlay').hidden = true; if (document.activeElement) document.activeElement.blur(); }
+  function showLevels() {
+    exitBattle(); G.mode = 'menu'; beginDay(0); quietMusic();
+    const grid = DAYS.slice(0, LEVELS).map((d, i) => '<button type="button" class="lvl' + (done.includes(i) ? ' done' : '') + '" data-l="' + i + '"><b>' + (i + 1) + '</b><span>' + lines(d).length + (lines(d).length > 1 ? ' lines' : ' line') + '</span><em>' + (done.includes(i) ? 'Cleared' : d.foods.filter(Boolean).map(f => FOOD[f]).join(' · ')) + '</em></button>').join('');
+    overlay('One-button factory', 'Cannery Line', '<p>Choose a level</p><div class="levels">' + grid + '</div>', [['2-Player Battle', showBattle]]);
+    for (const b of $('cbody').querySelectorAll('.lvl')) b.addEventListener('click', () => { wakeAudio(); showBrief(Number(b.dataset.l)); });
+  }
+  function showBrief(i) {
+    G.mode = 'brief'; beginDay(i);
+    const d = DAYS[i], foods = d.foods.filter(Boolean).map(f => FOOD[f]).join(' + ');
+    overlay('Level ' + (i + 1) + ' of ' + LEVELS, d.name,
+      d.tip.map(t => '<p>' + t + '</p>').join('') +
+      '<div class="row"><span>Cans</span><b>' + foods + '</b></div><div class="row"><span>Goal</span><b>$' + d.target + '</b></div>',
+      [['Start shift', () => { closeOverlay(); G.mode = 'play'; startMusic(); SFX.piston(); }], ['All levels', showLevels]]);
+  }
+  function togglePause() {
+    if (VS.on && VS.count > 0) return;
+    if (G.mode === 'play') {
+      setMode('paused'); quietMusic();
+      if (VS.on) overlay('Paused', 'Battle', '<div class="row"><span>Player 1 / Player 2</span><b>$' + VS.p[0].money + ' / $' + VS.p[1].money + '</b></div>',
+        [['Resume', resume], ['Restart battle', showBattle], ['All levels', showLevels]]);
+      else overlay('Paused', DAYS[G.day].name, '<div class="row"><span>Earned / goal</span><b>$' + G.money + ' / $' + DAYS[G.day].target + '</b></div>',
+        [['Resume', resume], ['Restart level', () => showBrief(G.day)], ['All levels', showLevels]]);
+    } else if (G.mode === 'paused') resume();
+  }
+  function resume() { closeOverlay(); setMode('play'); startMusic(); }
+  function showBattle() {
+    const opts = [1, 2, 3].map(n => '<button type="button" class="lvl pickn' + (n === VS.lines ? ' done' : '') + '" data-n="' + n + '"><b>' + n + '</b><span>' + (n > 1 ? 'lines' : 'line') + '</span></button>').join('');
+    const times = [30, 45, 60].map(n => '<button type="button" class="lvl pickt' + (n === VS.secs ? ' done' : '') + '" data-n="' + n + '"><b>' + n + '</b><span>seconds</span></button>').join('');
+    overlay('Two players, one button each', 'Battle', '<p>Both factories get exactly the same items at the same moments. Most money when time runs out wins.</p>' +
+      '<div class="row"><span>Left player</span><b>A key</b></div><div class="row"><span>Right player</span><b>L key</b></div>' +
+      '<p>On a phone or tablet, turn it sideways and tap your own half. Pushing good food costs $6.</p>' +
+      '<p><b>Lines per player</b></p><div class="levels">' + opts + '</div><p><b>Time</b></p><div class="levels">' + times + '</div>',
+      [['Start battle', () => startBattle(Math.floor(Math.random() * 2 ** 31))], ['All levels', showLevels]]);
+    for (const b of $('cbody').querySelectorAll('.pickn')) b.addEventListener('click', () => { VS.lines = Number(b.dataset.n); showBattle(); });
+    for (const b of $('cbody').querySelectorAll('.pickt')) b.addEventListener('click', () => { VS.secs = Number(b.dataset.n); showBattle(); });
+  }
+  function startBattle(seed) {
+    closeOverlay();
+    const battle = DAYS[LEVELS], n = VS.lines;
+    battle.foods = n === 1 ? [, T] : n === 2 ? [, T, P] : [P, T, F];
+    battle.pool = n === 1 ? [P, F] : n === 2 ? [F, M] : [M];
+    battle.gap = [.72, .8, .85][n - 1]; battle.walk = [4.6, 5, 5.2][n - 1]; battle.sort = .5; battle.time = VS.secs;
+    const home = VS.on ? VS.home : G;
+    VS.on = true; VS.home = home; VS.seed = seed; VS.ending = false; VS.count = 3.2; VS.beat = 4;
+    VS.p = [0, 1].map(() => { const p = Object.assign({}, home); p.rng = seeded(seed); return p; });
+    resize();
+    VS.p.forEach((p, i) => { G = p; withPanel(i); beginDay(LEVELS); p.mode = 'count'; });
+    G = VS.p[0]; L = base;
+    startMusic();
+  }
+  function withPanel(i) { L = base.panels[i]; }
+  function exitBattle() { if (!VS.on) return; G = VS.home; VS.on = false; VS.p = []; VS.count = 0; resize(); }
+  function endBattle() {
+    VS.ending = false; quietMusic(); setMode('result');
+    const [a, b] = VS.p, row = (x, y, z) => '<div class="row"><span>' + x + '</span><b>' + y + ' / ' + z + '</b></div>';
+    const title = a.money === b.money ? 'It\'s a draw!' : (a.money > b.money ? 'Player 1 wins!' : 'Player 2 wins!');
+    overlay('Battle over', title, '<div class="row"><span></span><b>P1 / P2</b></div>' + row('Earned', '$' + a.money, '$' + b.money) + row('Cans sealed', a.sealed, b.sealed) +
+      row('Rejected', a.caught, b.caught) + row('Cans spoiled', a.sneaked, b.sneaked) + row('Good food lost', a.scared, b.scared),
+      [['Rematch, new chart', () => startBattle(Math.floor(Math.random() * 2 ** 31))], ['Same chart again', () => startBattle(VS.seed)], ['All levels', showLevels]]);
+  }
+  function finish(reason) {
+    if (VS.on) { VS.ending = true; return; }
+    if (G.mode !== 'play') return;
+    G.end = reason; quietMusic();
+    showResult(reason !== 'rep' && G.money >= DAYS[G.day].target);
+  }
+  function showResult(pass) {
+    G.mode = 'result';
+    const i = G.day, d = DAYS[i], last = i === LEVELS - 1;
+    if (pass && !done.includes(i)) { done.push(i); saveDone(); }
+    const row = (a, b) => '<div class="row"><span>' + a + '</span><b>' + b + '</b></div>';
+    const rows = row('Earned / goal', '$' + G.money + ' / $' + d.target) + row('Cans sealed', G.sealed) +
+      row('Rejected', G.caught) + row('Cans spoiled', G.sneaked) + row('Good food lost', G.scared);
+    if (pass && last) overlay('All levels cleared', 'Every order shipped!', rows, [['All levels', showLevels], ['Play again', () => showBrief(i)]]);
+    else if (pass) overlay('Shift over', d.name + ' complete', rows, [['Next level', () => showBrief(i + 1)], ['All levels', showLevels]]);
+    else overlay('Shift failed', G.end === 'rep' ? 'Too much good food lost' : 'Goal not reached', rows, [['Retry', () => showBrief(i)], ['All levels', showLevels]]);
+  }
+
+  /* ---------- input ---------- */
+  $('app').addEventListener('pointerdown', e => {
+    wakeAudio();
+    if (e.target.closest('button') || G.mode !== 'play') return;
+    e.preventDefault();
+    if (VS.on) { const r = stage.getBoundingClientRect(); withP(e.clientX < r.left + r.width / 2 ? 0 : 1, pounce); }
+    else pounce();
+  });
+  addEventListener('contextmenu', e => e.preventDefault());
+  addEventListener('keydown', e => {
+    if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); togglePause(); return; }
+    if (VS.on) {
+      const i = e.code === 'KeyA' ? 0 : e.code === 'KeyL' ? 1 : -1;
+      if (i >= 0 && !e.repeat && G.mode === 'play') { e.preventDefault(); wakeAudio(); withP(i, pounce); }
+      return;
+    }
+    if (e.code !== 'Space') return;
+    wakeAudio();
+    if (G.mode === 'play') { e.preventDefault(); if (!e.repeat) pounce(); }
+  });
+  addEventListener('visibilitychange', () => { if (document.hidden && G.mode === 'play') togglePause(); });
+  $('pause').addEventListener('click', e => { togglePause(); e.currentTarget.blur(); });
+  $('mute').addEventListener('click', e => {
+    S.on = !S.on; e.currentTarget.textContent = S.on ? '♪' : '✕'; e.currentTarget.blur(); wakeAudio();
+  });
+
+  /* ---------- layout ---------- */
+  function resize() {
+    const r = stage.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2.5);
+    if (!r.width || !r.height) return;
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    const wide = r.width / r.height > 1;
+    const s = VS.on ? Math.min(r.width / 840, r.height / 500) : wide ? r.height / 520 : r.width / 420;
+    const W = r.width / s / (VS.on ? 2 : 1), H = r.height / s, y0 = H * .13 + 70, gap = Math.min(132, (H - y0 - 168) / 2);
+    L = { wide, s, W, H, dpr, startX: -40, belt: 62, gap };
+    L.lanes = [y0, y0 + gap, y0 + gap * 2];
+    L.canH = Math.min(gap * .9, 112); L.canW = L.canH * .78;
+    L.canX = W - L.canW / 2 - (wide ? 26 : 10);
+    L.beltEnd = L.canX - L.canW * .35;
+    L.endX = L.beltEnd + 6; L.endP = .985;
+    L.zc = L.startX + (L.endX - L.startX) * .62; L.zoneW = 76; L.walkK = Math.max(1, (L.endX - L.startX) / 520);
+    L.reach = L.belt * .72;
+    L.binW = wide ? 230 : 200; L.binH = L.binW * .47; L.binTop = H - L.binH * .96;
+    if (VS.on) { L.fullW = W * 2; L.panels = [0, W].map(left => Object.assign({}, L, { left })); }
+    base = L;
+    paintBackground();
+  }
+
+  /* ---------- drawing ---------- */
+  function rr(c, x, y, w, h, r) { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); }
+  function ink(c, fill, width = 3) { c.fillStyle = fill; c.fill(); c.strokeStyle = LINE; c.lineWidth = width; c.lineJoin = 'round'; c.stroke(); }
+  function paintBackground() {
+    const W = L.fullW || L.W, { H, dpr, s } = L, im = IMG.floor;
+    bg = document.createElement('canvas'); bg.width = cv.width; bg.height = cv.height;
+    const c = bg.getContext('2d'); c.setTransform(dpr * s, 0, 0, dpr * s, 0, 0);
+    c.fillStyle = '#b7c97a'; c.fillRect(0, 0, W, H);
+    if (im && im.naturalWidth) { const k = Math.max(W / 1536, H / 1024), iw = 1536 * k, ih = 1024 * k; c.drawImage(im, (W - iw) / 2, 0, iw, ih); }
+  }
+  function drawChute() {
+    for (const r of pads().ls) {
+      const z = zone(r), down = below(r), w = Math.max(z.w * .8, 52), y = L.lanes[r];
+      const y1 = down >= 0 ? L.lanes[down] : L.binTop + 10;
+      rr(ctx, z.x - w / 2, y, w, y1 - y, 0); ink(ctx, '#dfe3ea');
+      ctx.fillStyle = '#c8ccd6'; ctx.fillRect(z.x - w * .26, y, w * .52, y1 - y);
+    }
+  }
+  function drawBelt(r) {
+    const y = L.lanes[r], h = L.belt, top = y - h / 2, z = zone(r), W = L.beltEnd, move = G.belt % 36;
+    rr(ctx, -20, top + h, W + 20, 12, 3); ink(ctx, '#ffc93c');
+    rr(ctx, -20, top, W + 20, h, 3); ink(ctx, '#fbf6e9');
+    ctx.strokeStyle = '#d9d2bf'; ctx.lineWidth = 3;
+    for (let x = -36 + move; x < W; x += 36) { ctx.beginPath(); ctx.moveTo(x, top + 3); ctx.lineTo(x, top + h - 3); ctx.stroke(); }
+    ctx.fillStyle = '#ff8a6b'; ctx.fillRect(z.x0, top + 2, z.w, h - 4);
+    ctx.strokeStyle = LINE; ctx.lineWidth = 3; ctx.strokeRect(z.x0, top, z.w, h);
+    ctx.fillStyle = LINE; for (let x = 16; x < W; x += 74) ctx.fillRect(x, top + h + 12, 8, 8);
+  }
+  // Pile is clipped to the bin's dark opening, so everything really sits inside it.
+  function drawBin() {
+    const bx = binX(), x = bx - L.binW / 2, y = L.binTop, w = L.binW, h = L.binH, im = IMG.dumpster;
+    if (im && im.naturalWidth) ctx.drawImage(im, x, y, w, h);
+    ctx.save(); ctx.beginPath();
+    ctx.moveTo(x + w * .15, y + h * .07); ctx.lineTo(x + w * .85, y + h * .07); ctx.lineTo(x + w * .89, y + h * .25); ctx.lineTo(x + w * .11, y + h * .25); ctx.closePath(); ctx.clip();
+    for (const b of G.bin) {
+      const pic = IMG[b.kind === 'wrong' || b.kind === 'good' ? b.type : b.type + '_bad'], m = 32 * b.size; if (!pic || !pic.naturalWidth) continue;
+      ctx.save(); ctx.translate(bx + b.x * w * .32, y + h * (.16 + b.y * .1)); ctx.rotate(b.rot); ctx.drawImage(pic, -m / 2, -m / 2, m, m); ctx.restore();
+    }
+    ctx.restore();
+  }
+  function drawPusher(r) {
+    const y = L.lanes[r], top = y - L.belt / 2, z = zone(r), jolt = G.kick > 0 ? Math.sin(G.kick * 90) * 2 : 0, tip = top - 6 + paddle() * L.reach + jolt;
+    rr(ctx, z.x - 6, top - 24, 12, tip - top + 22, 3); ink(ctx, '#c8ccd6');
+    rr(ctx, z.x - z.w / 2, tip - 7, z.w, 13, 4); ink(ctx, '#ffc93c');
+    rr(ctx, z.x - 24, top - 32, 48, 14, 5); ink(ctx, '#6fd6c1');
+  }
+  function item(e, x, y, time, alpha, sc) {
+    const m = 54 * e.size * sc, im = IMG[e.kind === 'bad' || e.kind === 'big' ? e.type + '_bad' : e.type];
+    if (!im || !im.naturalWidth) return;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y);
+    ctx.fillStyle = '#2f2a3322'; ctx.beginPath(); ctx.ellipse(0, m * .36, m * .36, m * .12, 0, 0, 7); ctx.fill();
+    ctx.rotate(Math.sin(time * 1.6 * e.spin + e.seed) * .14 + (e.st === 'pushed' ? e.t * 6 : 0));
+    ctx.drawImage(im, -m / 2, -m / 2, m, m);
+    ctx.restore();
+  }
+  const SAUCE = { tomato: '#e8452f', peach: '#ffb37a', fish: '#7fb4e0', mushroom: '#b58a63' };
+  function drawCan(r) {
+    const can = G.cans[r], food = DAYS[G.day].foods[r], im = IMG['can_' + food], h = L.canH;
+    if (!im || !im.naturalWidth) return;
+    const w = h * im.naturalWidth / im.naturalHeight, out = can.swap > 0 ? can.swap / .34 : 0;
+    const x = L.canX + (out > .5 ? (out - .5) * 2 : out * 2) * L.canW * 2, y = L.lanes[r] + h * .5;
+    ctx.save(); ctx.translate(x + (can.ruin > 0 ? Math.sin(can.ruin * 60) * 3 : 0), y);
+    ctx.drawImage(im, -w / 2, -h, w, h);
+    // Contents rise inside the open mouth; the wrapped label is part of the can art.
+    const k = can.fill / CAPACITY;
+    if (k > 0) { ctx.fillStyle = SAUCE[food]; ctx.beginPath(); ctx.ellipse(0, -h * .9, w * .4 * (.55 + k * .45), h * .08 * (.55 + k * .45), 0, 0, 7); ctx.fill(); }
+    ctx.restore();
+    ctx.font = '400 13px ' + DISPLAY; ctx.textAlign = 'center';
+    const tx = L.canX - L.canW * .5, ty = L.lanes[r] + L.belt / 2 + 2;
+    rr(ctx, tx - 20, ty, 40, 17, 8); ink(ctx, '#fbf6e9', 2);
+    ctx.fillStyle = LINE; ctx.fillText(can.fill + '/' + CAPACITY, tx, ty + 13);
+  }
+  function draw(time) {
+    if (!bg) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(bg, 0, 0);
+    if (!VS.on || !L.panels) { const jolt = G.kick > 0 ? Math.sin(G.kick * 120) * 1.2 : 0; ctx.setTransform(L.dpr * L.s, 0, 0, L.dpr * L.s, 0, jolt * L.dpr * L.s); scene(time); return; }
+    VS.p.forEach((p, i) => withP(i, () => {
+      ctx.setTransform(L.dpr * L.s, 0, 0, L.dpr * L.s, L.left * L.dpr * L.s, 0);
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, L.W, L.H); ctx.clip();
+      scene(time);
+      ctx.font = '500 15px ' + DISPLAY; ctx.textAlign = 'left';
+      const tag = 'P' + (i + 1) + '  $' + p.money, tw = ctx.measureText(tag).width;
+      rr(ctx, 10, 8, tw + 22, 26, 13); ink(ctx, i ? '#6fd6c1' : '#ffc93c', 2.4);
+      ctx.fillStyle = LINE; ctx.fillText(tag, 21, 26);
+      ctx.restore();
+    }));
+    const b = base;
+    ctx.setTransform(b.dpr * b.s, 0, 0, b.dpr * b.s, 0, 0);
+    ctx.fillStyle = LINE; ctx.fillRect(b.W - 2, 0, 4, b.H);
+    if (VS.count > 0) {
+      const n = Math.ceil(VS.count - .2), text = n > 0 ? String(n) : 'GO!';
+      ctx.font = '600 84px ' + DISPLAY; ctx.textAlign = 'center'; ctx.lineWidth = 8; ctx.lineJoin = 'round'; ctx.strokeStyle = LINE;
+      ctx.strokeText(text, b.W, b.H / 2 + 30); ctx.fillStyle = '#ffc93c'; ctx.fillText(text, b.W, b.H / 2 + 30);
+    }
+  }
+  function scene(time) {
+    const routes = lines(DAYS[G.day]);
+    drawChute();
+    for (const r of routes) drawBelt(r);
+    for (const r of routes) drawCan(r);
+    drawBin();
+    for (const e of G.list) {
+      if (!routes.includes(e.route)) continue;
+      if (e.st === 'walk') { const q = at(e.p, e.route); item(e, q.x, q.y, time, 1, 1); }
+      else if (e.st === 'pushed') item(e, e.x, e.y, time, 1, 1);
+      else if (e.st === 'drop') {
+        const k = e.t / .3, sy = L.lanes[e.route], ty = sy - L.canH * .4, x = e.x + (L.canX - e.x) * k, y = sy + (ty - sy) * k - Math.sin(k * 3.14) * 26;
+        item(e, x, y, time, k > .8 ? (1 - k) * 5 : 1, 1 - k * .5);
+      }
+    }
+    for (const r of routes) drawPusher(r);
+    for (const f of G.floats) {
+      ctx.globalAlpha = Math.min(1, f.t * 2.4);
+      ctx.font = '400 ' + f.size + 'px ' + DISPLAY; ctx.textAlign = 'center';
+      const half = ctx.measureText(f.text).width / 2 + 10, x = Math.max(half + 4, Math.min(L.W - half - 4, f.x)), y = f.y - (1 - f.t) * 16, ph = f.size + 10;
+      rr(ctx, x - half, y - ph + 6, half * 2, ph, ph / 2); ink(ctx, '#fbf6e9', 2.4);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, x, y);
+    }
+    ctx.globalAlpha = 1;
+  }
+  const shown = {};
+  function put(id, v) { if (shown[id] !== v) { shown[id] = v; $(id).textContent = v; } }
+  function hud() {
+    const d = DAYS[G.day], pct = Math.max(0, G.time / d.time);
+    if (VS.on && VS.p.length) {
+      const [a, b] = VS.p, sum = a.money + b.money;
+      put('lblA', 'Player 1'); put('lblB', 'Time left'); put('lblC', 'Player 2');
+      put('vMoney', '$' + a.money); put('vTarget', Math.ceil(Math.max(0, G.time)) + 's'); put('vRep', '$' + b.money);
+      put('vStock', 'Left: A key or tap left · Right: L key or tap right · Line speed ×' + G.rate.toFixed(1));
+      $('goalfill').style.transform = 'scaleX(' + (sum ? a.money / sum : .5).toFixed(3) + ')';
+      $('timefill').style.transform = 'scaleX(' + pct.toFixed(3) + ')';
+      return;
+    }
+    put('lblA', 'Earned'); put('lblB', 'Goal'); put('lblC', 'Quality');
+    put('vMoney', '$' + G.money); put('vTarget', '$' + d.target); put('vRep', '★ ' + Math.max(0, G.rep) + '/' + MAX_REP);
+    put('vStock', d.name + ' · Line speed ×' + G.rate.toFixed(1) + ' · Space to tap, P to pause');
+    $('goalfill').style.transform = 'scaleX(' + Math.min(1, G.money / d.target).toFixed(3) + ')';
+    $('timefill').style.transform = 'scaleX(' + pct.toFixed(3) + ')';
+    $('timefill').style.background = pct < .2 ? '#ff8a6b' : '#6fd6c1';
+  }
+
+  /* ---------- loop ---------- */
+  let lastT = performance.now();
+  function frame(now) {
+    const dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
+    if (VS.on) {
+      if (VS.count > 0) { VS.count -= dt; const b = Math.ceil(VS.count); if (b !== VS.beat) { VS.beat = b; SFX.piston(); } if (VS.count <= 0) setMode('play'); }
+      else if (G.mode === 'play' && !document.hidden) {
+        VS.p.forEach((p, i) => withP(i, () => step(dt)));
+        if (VS.ending) endBattle();
+      }
+    } else if (G.mode === 'play' && !document.hidden) step(dt);
+    draw(now / 1000); hud();
+    requestAnimationFrame(frame);
+  }
+  const IMG = {};
+  addEventListener('resize', resize);
+  addEventListener('orientationchange', resize);
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  resize();
+  showLevels();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (L.W) paintBackground(); });
+  const names = 'tomato peach fish mushroom tomato_bad peach_bad fish_bad mushroom_bad can_tomato can_peach can_fish can_mushroom dumpster'.split(' ');
+  let waiting = names.length;
+  for (const n of names) {
+    const im = IMG[n] = new Image();
+    im.onload = im.onerror = () => { if (--waiting === 0) resize(); };
+    im.src = '../cannery/' + n + '.png';
+  }
+  const floor = IMG.floor = new Image(); floor.onload = () => { if (L.W) paintBackground(); }; floor.src = '../cannery/floor.jpg';
+  requestAnimationFrame(frame);
+  if (location.hash === '#debug') window.__shop = { get G() { return G; }, step, DAYS, VS, showBrief, showLevels, showBattle, startBattle, withP, pounce, inZone, keeps, xOf, zone, pads, freeIn, get L() { return L; } };
+})();
+</script>
+</body>
+</html>
