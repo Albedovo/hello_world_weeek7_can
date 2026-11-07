@@ -298,8 +298,8 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
     let w = L.zoneW || 76;
     if (n < 2) xs[ls[0]] = L.zc;
     else {
-      // Portrait: pads sit further right for more reading time on the top line. Landscape: nudged left.
-      const len = L.endX - L.startX, hi = L.wide ? L.beltEnd - 92 : L.beltEnd - 44, lo = L.startX + len * (L.wide ? .28 : .36);
+      // Keep the last pad well clear of the can. Portrait: the top pad still sits a bit further right for reading time.
+      const len = L.endX - L.startX, hi = L.wide ? L.beltEnd - 160 : L.beltEnd - 60, lo = L.startX + len * (L.wide ? .28 : .33);
       const D = Math.min(190, (hi - lo) / (n - 1));
       w = Math.min(w, D - 34);
       ls.forEach((r, k) => { xs[r] = hi - (n - 1 - k) * D; });
