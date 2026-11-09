@@ -87,6 +87,19 @@ canvas#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: bl
 #ctitle { font: 400 clamp(28px, 8vw, 38px)/1.15 var(--display); margin: 2px 0 8px; text-wrap: balance; color: var(--leaf-deep); }
 #cbody { font-size: 14px; line-height: 1.55; display: grid; gap: 4px; }
 #cbody p { margin: 0; }
+#cbody .clean { margin-top: 6px; font-weight: 700; color: #2c8c74; }
+.mmap { display: grid; gap: 3px; margin-top: 6px; }
+.mline { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.mcan img { width: 18px; height: 22px; object-fit: contain; display: block; margin-right: 2px; }
+.chip { display: inline-flex; align-items: center; gap: 1px; padding: 0 5px 0 1px; border-radius: 999px; font: 700 11px var(--body); }
+.chip img { width: 18px; height: 18px; object-fit: contain; }
+.chip.bad { background: #fde1dc; color: #b2392b; border: 1.5px solid #d9503f; }
+.chip.warn { background: #fff0cf; color: #9a5a00; border: 1.5px solid #f0a020; }
+.mkey { font-size: 11px; color: #6a6a5a; }
+.mkey i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 3px 0 6px; vertical-align: -1px; }
+.mkey i:first-child { margin-left: 0; }
+.mkey i.bad { background: #d9503f; } .mkey i.warn { background: #f0a020; }
+#cbody .mtip { font-size: 12px; line-height: 1.45; color: #555; margin-top: 2px; }
 #cbody .row { display: flex; justify-content: space-between; gap: 16px; font-variant-numeric: tabular-nums; }
 #cbody .row b { font-family: var(--display); font-weight: 400; font-size: 17px; }
   min-width: 0; padding: 6px 4px; border: 2px solid #e6e0c8; border-radius: 16px; background: #fff;
@@ -167,7 +180,12 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   // A valid situation always leaves at least this much belt travel, in px, where a tap pushes what must go and nothing that must stay.
   const SAFE_GAP = 30, KEEP_MARGIN = 6, DROP_TIME = .16;
   const LEVELS = DAYS.length;
-  DAYS.push({ name: 'Battle', foods: [, T], target: 0, walk: 4.6, gap: .72, bad: .3, big: .16, wrong: .16, pool: [P, F], tailgate: .25, ramp: .7, bpm: 150, time: 60, tip: [] });
+  // Endless and Battle have no clock: the line speeds up ramp× per minute (up to maxRate) until the stars run out.
+  DAYS.push({ name: 'Battle', foods: [, T], target: 0, walk: 4.6, gap: .72, bad: .3, big: .16, wrong: .16, pool: [P, F], tailgate: .25, endless: true, ramp: .3, maxRate: 2.4, bpm: 140, time: Infinity, tip: [] });
+  const ENDLESS = DAYS.length;
+  DAYS.push({ name: 'Endless', foods: [P, T, F], target: 0, walk: 6, gap: 1.1, bad: .32, big: .15, wrong: .15, sort: .7, tailgate: .2, endless: true, ramp: .3, maxRate: 2.4, bpm: 130, time: Infinity, tip: [] });
+  let best = 0;
+  try { best = Number(localStorage.getItem('can-line-best-w8')) || 0; } catch (e) {}
   const lines = d => d.foods.map((f, i) => f ? i : -1).filter(i => i >= 0);
 
   let G = {
@@ -181,7 +199,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   const saveDone = () => { try { localStorage.setItem('can-line-done-w8v2', JSON.stringify(done)); } catch (e) {} };
   const pick = a => a[Math.floor(Math.random() * a.length)];
   // Battle: both players read the same seeded chart, so their belts carry identical items at identical times.
-  const VS = { on: false, p: [], count: 0, ending: false, seed: 0, lines: 2, secs: 60 };
+  const VS = { on: false, p: [], count: 0, ending: false, seed: 0, lines: 2 };
   function seeded(a) { return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   const rnd = () => (G.rng ? G.rng() : Math.random());
   const rpick = a => a[Math.floor(rnd() * a.length)];
@@ -269,7 +287,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   }
   function musicTick() {
     if (!S.ac || !S.playing) return;
-    const day = DAYS[G.day], rush = G.mode === 'play' && G.time < 10 ? 10 : 0, beatLen = 60 / (day.bpm + rush);
+    const day = DAYS[G.day], rush = day.endless ? Math.round((G.rate - 1) * 20) : G.mode === 'play' && G.time < 10 ? 10 : 0, beatLen = 60 / (day.bpm + rush);
     while (S.next < S.ac.currentTime + .25) { scheduleBar(S.next, S.bar, beatLen); S.next += beatLen * 3; S.bar++; }
   }
   function startMusic() {
@@ -400,8 +418,8 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
     if (!VS.on) G.rng = seeded(seed == null ? Math.floor(Math.random() * 2 ** 31) : seed);
     $('hint').hidden = true;
     Object.assign(G, { day: i, list: [], floats: [], bin: [], sched: [], bag: [], target: 0, base: 0, hint: null,
-      miss: [0, 0, 0], oops: [0, 0, 0], strayMiss: 0, flash: [0, 1, 2].map(() => ({ t: 0, c: '' })), belt: 0, rate: 1, money: 0, rep: MAX_REP, time: day.time, spawnIn: .2,
-      streak: 0, sealed: 0, caught: 0, sneaked: 0, scared: 0, cat: { st: 'idle', t: 0 }, queued: false, kick: 0,
+      miss: [0, 0, 0], oops: [0, 0, 0], missT: [{}, {}, {}], oopsT: [{}, {}, {}], strayMiss: 0, flash: [0, 1, 2].map(() => ({ t: 0, c: '' })), belt: 0, rate: 1, money: 0, rep: MAX_REP, time: day.time, spawnIn: .2,
+      streak: 0, sealed: 0, caught: 0, sneaked: 0, scared: 0, clock: 0, out: false, cat: { st: 'idle', t: 0 }, queued: false, kick: 0,
       cans: [0, 0, 0].map(() => ({ fill: 0, swap: 0, ruin: 0 })) });
     const len = L.endX - L.startX, first = pads().xs[lines(day)[0]], p0 = Math.min(.46, (first - L.startX) / len - .08);
     for (let n = 0; n < 3; n++) spawn(L.startX + len * Math.max(0, p0 - n * day.gap / (day.walk * L.walkK)));
@@ -427,7 +445,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
       e.st = 'pushed'; e.t = 0; e.x = xOf(e); e.y = e.y0 = L.lanes[e.route]; e.vy = 0;
       e.lost = good.includes(e); e.to = e.lost ? -1 : below(e.route); e.combo = G.streak;
     }
-    for (const e of good) { G.oops[e.route]++; G.rep--; G.scared++; G.streak = 0; if (VS.on) G.money = Math.max(0, G.money - 6); float(VS.on ? '-$6' : 'Good food lost', '#d9503f', e.x, e.y - 46); SFX.oops(); bump('rep'); }
+    for (const e of good) { G.oops[e.route]++; tally(G.oopsT[e.route], e.type); G.rep--; G.scared++; G.streak = 0; float('Good food lost', '#d9503f', e.x, e.y - 46); SFX.oops(); bump('rep'); }
     if (!hit.length) G.streak = 0;
   }
   // Input never waits: a tap inside the short refire window is remembered and fires as soon as it closes.
@@ -439,7 +457,8 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   }
   function step(dt) {
     const day = DAYS[G.day];
-    G.rate = 1 + day.ramp * (1 - G.time / day.time);
+    G.clock += dt;
+    G.rate = day.endless ? Math.min(day.maxRate, 1 + day.ramp * G.clock / 60) : 1 + day.ramp * (1 - G.time / day.time);
     const beltV = (L.endX - L.startX) / (day.walk * L.walkK) * G.rate;
     G.belt += beltV * dt; G.kick = Math.max(0, G.kick - dt);
     G.time -= dt; G.spawnIn -= dt * G.rate;
@@ -474,7 +493,8 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
               float('Sealed +$' + CAN_PAY, '#2c8c74', L.canX, y); SFX.combo(3); bump('money');
             }
           } else {
-            can.fill = 0; can.ruin = .5; G.sneaked++; G.streak = 0; G.miss[e.route]++; if (e.kind === 'wrong') G.strayMiss++;
+            can.fill = 0; can.ruin = .5; G.sneaked++; G.streak = 0; G.miss[e.route]++; tally(G.missT[e.route], e.kind === 'wrong' ? e.type : e.type + '_bad'); if (e.kind === 'wrong') G.strayMiss++;
+            if (day.endless) { G.rep--; bump('rep'); }
             float('Can spoiled', '#d9503f', L.canX, y); SFX.sour();
           }
         }
@@ -508,7 +528,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
     for (let i = G.floats.length - 1; i >= 0; i--) { G.floats[i].t -= dt * 1.25; if (G.floats[i].t <= 0) G.floats.splice(i, 1); }
 
     if (G.mode === 'play') checkHints();
-    if (!VS.on && G.rep <= 0) finish('rep');
+    if (G.rep <= 0) finish('rep');
     else if (G.time <= 0) finish('time');
   }
 
@@ -576,7 +596,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   function showLevels() {
     exitBattle(); G.mode = 'menu'; beginDay(0); quietMusic();
     const grid = DAYS.slice(0, LEVELS).map((d, i) => '<button type="button" class="lvl' + (done.includes(i) ? ' done' : '') + '" data-l="' + i + '"><b>' + (i + 1) + '</b><span>' + lines(d).length + (lines(d).length > 1 ? ' lines' : ' line') + '</span><em>' + (done.includes(i) ? 'Cleared' : d.foods.filter(Boolean).map(f => FOOD[f]).join(' · ')) + '</em></button>').join('');
-    overlay('One-button factory', 'Cannery Line', '<p>Choose a level</p><div class="levels">' + grid + '</div>', [['2-Player Battle', showBattle], ['Show tips again', () => { seen = []; try { localStorage.removeItem('can-line-tips-w8'); } catch (e) {} showLevels(); }]]);
+    overlay('One-button factory', 'Cannery Line', '<p>Choose a level</p><div class="levels">' + grid + '</div>', [['Endless mode', showEndless], ['2-Player Battle', showBattle], ['Show tips again', () => { seen = []; try { localStorage.removeItem('can-line-tips-w8'); } catch (e) {} showLevels(); }]]);
     for (const b of $('cbody').querySelectorAll('.lvl')) b.addEventListener('click', () => { wakeAudio(); showBrief(Number(b.dataset.l)); });
   }
   // Play the exact same shift once, offscreen and without mistakes. The goal is 85% of the base pay that run earns
@@ -598,12 +618,32 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
       '<div class="row"><span>Cans</span><b>' + foods + '</b></div><div class="row"><span>Goal</span><b>$' + G.target + '</b></div>',
       [['Start shift', () => { closeOverlay(); G.mode = 'play'; startMusic(); SFX.piston(); }], ['All levels', showLevels]]);
   }
+  const mmss = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+  function showEndless() {
+    exitBattle(); G.mode = 'brief'; beginDay(ENDLESS);
+    overlay('Endless mode', 'Keep the line running',
+      '<p>All three lines, no clock. The line keeps speeding up.</p><p>Every spoiled can or good food pushed off costs a star. Lose all ' + MAX_REP + ' stars and the shift is over.</p>' +
+      '<div class="row"><span>Best time</span><b>' + (best ? mmss(best) : '—') + '</b></div>',
+      [['Start', () => { closeOverlay(); G.mode = 'play'; startMusic(); SFX.piston(); }], ['All levels', showLevels]]);
+  }
+  function showEndlessResult() {
+    G.mode = 'result';
+    const t = G.clock, rec = t > best;
+    if (rec) { best = t; try { localStorage.setItem('can-line-best-w8', String(Math.floor(t))); } catch (e) {} }
+    const row = (a, b) => '<div class="row"><span>' + a + '</span><b>' + b + '</b></div>';
+    overlay(rec ? 'New best!' : 'Out of stars', 'You lasted ' + mmss(t),
+      row('Best time', mmss(best)) + row('Top line speed', '×' + G.rate.toFixed(1)) + row('Earned', '$' + G.money) + row('Cans sealed', G.sealed) +
+      row('Rejected', G.caught) + row('Cans spoiled', G.sneaked) + row('Good food lost', G.scared) + review(),
+      [['Play again', showEndless], ['All levels', showLevels]]);
+  }
   function togglePause() {
     if (VS.on && VS.count > 0) return;
     if (G.mode === 'play') {
       setMode('paused'); quietMusic();
-      if (VS.on) overlay('Paused', 'Battle', '<div class="row"><span>Player 1 / Player 2</span><b>$' + VS.p[0].money + ' / $' + VS.p[1].money + '</b></div>',
+      if (VS.on) overlay('Paused', 'Battle', '<div class="row"><span>Stars, Player 1 / Player 2</span><b>★' + VS.p[0].rep + ' / ★' + VS.p[1].rep + '</b></div>',
         [['Resume', resume], ['Restart battle', showBattle], ['All levels', showLevels]]);
+      else if (G.day === ENDLESS) overlay('Paused', 'Endless', '<div class="row"><span>Time / stars</span><b>' + mmss(G.clock) + ' / ★' + G.rep + '</b></div>',
+        [['Resume', resume], ['Restart', showEndless], ['All levels', showLevels]]);
       else overlay('Paused', DAYS[G.day].name, '<div class="row"><span>Earned / goal</span><b>$' + G.money + ' / $' + G.target + '</b></div>',
         [['Resume', resume], ['Restart level', () => showBrief(G.day)], ['All levels', showLevels]]);
     } else if (G.mode === 'paused') resume();
@@ -611,21 +651,19 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   function resume() { closeOverlay(); setMode('play'); startMusic(); }
   function showBattle() {
     const opts = [1, 2, 3].map(n => '<button type="button" class="lvl pickn' + (n === VS.lines ? ' done' : '') + '" data-n="' + n + '"><b>' + n + '</b><span>' + (n > 1 ? 'lines' : 'line') + '</span></button>').join('');
-    const times = [30, 45, 60].map(n => '<button type="button" class="lvl pickt' + (n === VS.secs ? ' done' : '') + '" data-n="' + n + '"><b>' + n + '</b><span>seconds</span></button>').join('');
-    overlay('Two players, one button each', 'Battle', '<p>Both factories get exactly the same items at the same moments. Most money when time runs out wins.</p>' +
+    overlay('Two players, one button each', 'Battle', '<p>Both factories get exactly the same items at the same moments, and the line keeps speeding up. Each spoiled can or good food pushed off costs a star. Whoever loses all ' + MAX_REP + ' stars first loses.</p>' +
       '<div class="row"><span>Left player</span><b>A key</b></div><div class="row"><span>Right player</span><b>L key</b></div>' +
-      '<p>On a phone or tablet, turn it sideways and tap your own half. Pushing good food costs $6.</p>' +
-      '<p><b>Lines per player</b></p><div class="levels">' + opts + '</div><p><b>Time</b></p><div class="levels">' + times + '</div>',
+      '<p>On a phone or tablet, turn it sideways and tap your own half.</p>' +
+      '<p><b>Lines per player</b></p><div class="levels">' + opts + '</div>',
       [['Start battle', () => startBattle(Math.floor(Math.random() * 2 ** 31))], ['All levels', showLevels]]);
     for (const b of $('cbody').querySelectorAll('.pickn')) b.addEventListener('click', () => { VS.lines = Number(b.dataset.n); showBattle(); });
-    for (const b of $('cbody').querySelectorAll('.pickt')) b.addEventListener('click', () => { VS.secs = Number(b.dataset.n); showBattle(); });
   }
   function startBattle(seed) {
     closeOverlay();
     const battle = DAYS[LEVELS], n = VS.lines;
     battle.foods = n === 1 ? [, T] : n === 2 ? [, T, P] : [P, T, F];
     battle.pool = n === 1 ? [P, F] : n === 2 ? [F, M] : [M];
-    battle.gap = [.72, .8, .85][n - 1]; battle.walk = [4.6, 5, 5.2][n - 1]; battle.sort = .5; battle.time = VS.secs;
+    battle.gap = [.72, .8, .85][n - 1]; battle.walk = [4.6, 5, 5.2][n - 1]; battle.sort = .5;
     const home = VS.on ? VS.home : G;
     VS.on = true; VS.home = home; VS.seed = seed; VS.ending = false; VS.count = 3.2; VS.beat = 4;
     VS.p = [0, 1].map(() => { const p = Object.assign({}, home); p.rng = seeded(seed); return p; });
@@ -639,33 +677,38 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   function endBattle() {
     VS.ending = false; quietMusic(); setMode('result');
     const [a, b] = VS.p, row = (x, y, z) => '<div class="row"><span>' + x + '</span><b>' + y + ' / ' + z + '</b></div>';
-    const title = a.money === b.money ? 'It\'s a draw!' : (a.money > b.money ? 'Player 1 wins!' : 'Player 2 wins!');
-    overlay('Battle over', title, '<div class="row"><span></span><b>P1 / P2</b></div>' + row('Earned', '$' + a.money, '$' + b.money) + row('Cans sealed', a.sealed, b.sealed) +
+    // Both players see the same chart, so both can run out on the same frame: then it is a draw.
+    const title = a.out && b.out ? 'It\'s a draw!' : (b.out ? 'Player 1 wins!' : 'Player 2 wins!');
+    overlay('Battle over · ' + mmss(a.clock), title, '<div class="row"><span></span><b>P1 / P2</b></div>' + row('Stars left', '★' + Math.max(0, a.rep), '★' + Math.max(0, b.rep)) + row('Earned', '$' + a.money, '$' + b.money) + row('Cans sealed', a.sealed, b.sealed) +
       row('Rejected', a.caught, b.caught) + row('Cans spoiled', a.sneaked, b.sneaked) + row('Good food lost', a.scared, b.scared),
       [['Rematch, new chart', () => startBattle(Math.floor(Math.random() * 2 ** 31))], ['Same chart again', () => startBattle(VS.seed)], ['All levels', showLevels]]);
   }
   function finish(reason) {
     if (DRY) return;
-    if (VS.on) { VS.ending = true; return; }
+    if (VS.on) { G.out = true; VS.ending = true; return; }
     if (G.mode !== 'play') return;
     G.end = reason; quietMusic();
-    showResult(reason !== 'rep' && G.money >= G.target);
+    if (G.day === ENDLESS) showEndlessResult();
+    else showResult(reason !== 'rep' && G.money >= G.target);
   }
-  // Where things went wrong is only shown after the shift, with a pointer for the next try.
+  // Where things went wrong is only shown after the shift: per line, the can and icons of what slipped in
+  // or what good food got pushed off, plus a pointer for the next try.
+  function tally(o, k) { o[k] = (o[k] || 0) + 1; }
   function review() {
-    const day = DAYS[G.day], ls = lines(day), out = [], tips = [], name = r => FOOD[day.foods[r]];
-    for (const r of ls) {
-      if (G.miss[r]) out.push('<div class="row"><span>Got past the ' + name(r) + ' pad</span><b>' + G.miss[r] + '</b></div>');
-      if (G.oops[r]) out.push('<div class="row"><span>Good food pushed on the ' + name(r) + ' pad</span><b>' + G.oops[r] + '</b></div>');
-    }
-    if (!out.length) return '<p style="margin-top:8px"><b>Clean shift: nothing got past, no good food pushed.</b></p>';
+    const day = DAYS[G.day], ls = lines(day), tips = [], name = r => FOOD[day.foods[r]];
+    if (!ls.some(r => G.miss[r] || G.oops[r])) return '<p class="clean">✓ Clean: nothing got past, no good food pushed.</p>';
     const worst = ls.reduce((a, r) => (G.miss[r] > G.miss[a] ? r : a), ls[0]);
+    const pic = k => '<img src="../cannery/' + k + '.png" alt="">';
+    const chips = (o, cls) => Object.keys(o).map(k => '<span class="chip ' + cls + '">' + pic(k) + '×' + o[k] + '</span>').join('');
+    const rowsHtml = ls.filter(r => G.miss[r] || G.oops[r]).map(r =>
+      '<div class="mline">' + '<span class="mcan">' + pic('can_' + day.foods[r]) + '</span>' + chips(G.missT[r], 'bad') + chips(G.oopsT[r], 'warn') + '</div>').join('');
     if (G.miss[worst]) tips.push(ls.indexOf(worst) > 0
       ? 'Most misses were on the ' + name(worst) + ' line. After a push, follow the item down: it needs another tap there.'
       : 'Most misses were on the ' + name(worst) + ' line. Watch that pad first.');
     if (G.strayMiss) tips.push('Strays spoil cans too: check each item against the can at the end of its own line.');
     if (G.scared) tips.push('Before you tap, check that no good food sits on any pad.');
-    return '<p style="margin-top:8px"><b>Where it went wrong</b></p>' + out.join('') + '<p style="margin-top:6px">' + tips.join(' ') + '</p>';
+    return '<div class="mmap"><span class="mkey"><i class="bad"></i>got into the can <i class="warn"></i>good food pushed off</span>' + rowsHtml + '</div>' +
+      '<p class="mtip">' + tips.join(' ') + '</p>';
   }
   function showResult(pass) {
     G.mode = 'result';
@@ -861,14 +904,23 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   const shown = {};
   function put(id, v) { if (shown[id] !== v) { shown[id] = v; $(id).textContent = v; } }
   function hud() {
-    const d = DAYS[G.day], pct = Math.max(0, G.time / d.time);
+    const d = DAYS[G.day], pct = d.endless ? (G.rate - 1) / (d.maxRate - 1) : Math.max(0, G.time / d.time);
     if (VS.on && VS.p.length) {
-      const [a, b] = VS.p, sum = a.money + b.money;
-      put('lblA', 'Player 1'); put('lblB', 'Time left'); put('lblC', 'Player 2');
-      put('vMoney', '$' + a.money); put('vTarget', Math.ceil(Math.max(0, G.time)) + 's'); put('vRep', '$' + b.money);
+      const [a, b] = VS.p, sum = Math.max(0, a.rep) + Math.max(0, b.rep);
+      put('lblA', 'Player 1'); put('lblB', 'Time'); put('lblC', 'Player 2');
+      put('vMoney', '★ ' + Math.max(0, a.rep) + '/' + MAX_REP); put('vTarget', mmss(G.clock)); put('vRep', '★ ' + Math.max(0, b.rep) + '/' + MAX_REP);
       put('vStock', 'Left: A key or tap left · Right: L key or tap right · Line speed ×' + G.rate.toFixed(1));
-      $('goalfill').style.transform = 'scaleX(' + (sum ? a.money / sum : .5).toFixed(3) + ')';
+      $('goalfill').style.transform = 'scaleX(' + (sum ? Math.max(0, a.rep) / sum : .5).toFixed(3) + ')';
       $('timefill').style.transform = 'scaleX(' + pct.toFixed(3) + ')';
+      return;
+    }
+    if (d.endless) {
+      put('lblA', 'Earned'); put('lblB', 'Time'); put('lblC', 'Stars');
+      put('vMoney', '$' + G.money); put('vTarget', mmss(G.clock)); put('vRep', '★ ' + Math.max(0, G.rep) + '/' + MAX_REP);
+      put('vStock', 'Endless · Line speed ×' + G.rate.toFixed(1) + ' · Best ' + (best ? mmss(best) : '—') + ' · Space to tap, P to pause');
+      $('goalfill').style.transform = 'scaleX(' + (Math.max(0, G.rep) / MAX_REP).toFixed(3) + ')';
+      $('timefill').style.transform = 'scaleX(' + pct.toFixed(3) + ')';
+      $('timefill').style.background = '#ff8a6b';
       return;
     }
     put('lblA', 'Earned'); put('lblB', 'Goal'); put('lblC', 'Quality');
@@ -909,7 +961,7 @@ button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
   }
   const floor = IMG.floor = new Image(); floor.onload = () => { if (L.W) paintBackground(); }; floor.src = '../cannery/floor.jpg';
   requestAnimationFrame(frame);
-  if (location.hash === '#debug') window.__shop = { get G() { return G; }, step, DAYS, VS, showBrief, showLevels, showBattle, startBattle, withP, pounce, inZone, keeps, xOf, zone, pads, freeIn, dryTarget, autoTap, checkHints, get L() { return L; } };
+  if (location.hash === '#debug') window.__shop = { get G() { return G; }, showEndless, ENDLESS, step, DAYS, VS, showBrief, showLevels, showBattle, startBattle, withP, pounce, inZone, keeps, xOf, zone, pads, freeIn, dryTarget, autoTap, checkHints, get L() { return L; } };
 })();
 </script>
 </body>
